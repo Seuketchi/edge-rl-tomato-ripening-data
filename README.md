@@ -53,6 +53,8 @@ reproducible reference, pin a commit hash or release tag, e.g.:
 
 ## License
 
-No license is set yet. Until one is added, default copyright applies (all rights
-reserved). A permissive choice is recommended for a public release — e.g. **MIT**
-for the code in `scripts/` and **CC-BY-4.0** for the data in `data/`.
+- **Code** (`scripts/`): [MIT](LICENSE).
+- **Data, manuscript, and media** (`data/`, `Manuscript.pdf`, `media/`, `assets/`):
+  [CC-BY-4.0](data/LICENSE) — free to share and adapt with attribution.
+
+© 2026 Tristan O. Jadman.
