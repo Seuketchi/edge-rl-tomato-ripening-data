@@ -22,7 +22,6 @@ The **firmware and simulation source code** live in the companion repository:
 | `data/demo-2026-06-22.csv` | **Run 2** telemetry — continuous re-run (RGB888 path), 7,045 rows. |
 | `data/README.md` | Column schema, cleaning rules, and run details. |
 | `scripts/` | Cleaning and figure/timelapse generation scripts. |
-| `assets/` | Calibration frames and bench photographs used by the timelapse. |
 | `media/ripening_timelapse.mp4` | The Run 2 ripening timelapse (chamber camera vs. true-colour bench). |
 
 Each row of telemetry is a once-per-minute sample; column meanings are documented
@@ -35,7 +34,6 @@ python -m pip install -r scripts/requirements.txt
 
 python scripts/plot_demo_run.py    # -> figures/demo_run.png            (Run 1)
 python scripts/plot_run2.py        # -> figures/run2_perceived_panels.png (Run 2)
-python scripts/make_timelapse.py   # -> media/ripening_timelapse.mp4     (timelapse; needs ffmpeg)
 ```
 
 The figures are regenerated deterministically from `data/`; they are not checked
@@ -53,7 +51,7 @@ reproducible reference, pin a commit hash or release tag, e.g.:
 ## License
 
 - **Code** (`scripts/`): [MIT](LICENSE).
-- **Data and media** (`data/`, `media/`, `assets/`):
+- **Data and media** (`data/`, `media/`):
   [CC-BY-4.0](data/LICENSE) — free to share and adapt with attribution.
 
 © 2026 Tristan O. Jadman.
