@@ -49,7 +49,7 @@ reproducible reference, pin a commit hash or release tag, e.g.:
 
 > T. O. Jadman, *Edge-RL: Autonomous Post-Harvest Tomato Ripening Control on a
 > \$50 Edge Device*, MSU-IIT, 2026. Data and code:
-> `https://github.com/Seuketchi/edge-rl-tomato-ripening-data` (commit `<hash>`).
+> `https://github.com/Seuketchi/edge-rl-tomato-ripening-data` (release `v1.0`).
 
 ## License
 
