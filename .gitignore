@@ -1,0 +1,4 @@
+media/frames/
+figures/*.png
+__pycache__/
+*.pyc
