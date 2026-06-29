@@ -1,6 +1,6 @@
 # Edge-RL: Tomato Ripening — Data & Reproducibility
 
-Public data, code, and manuscript companion for the thesis
+Public data, code, and media companion for the thesis
 
 > **Edge-RL: Autonomous Post-Harvest Tomato Ripening Control on a \$50 Edge Device**
 > Tristan O. Jadman — Department of Computer Engineering, MSU-IIT
@@ -18,7 +18,6 @@ The **firmware and simulation source code** live in the companion repository:
 
 | Path | What it is |
 |------|------------|
-| `Manuscript.pdf` | The compiled thesis manuscript. |
 | `data/demo-2026-06-10.csv` | **Run 1** telemetry — five-day run (RGB565 path), 7,418 rows. |
 | `data/demo-2026-06-22.csv` | **Run 2** telemetry — continuous re-run (RGB888 path), 7,045 rows. |
 | `data/README.md` | Column schema, cleaning rules, and run details. |
@@ -54,7 +53,7 @@ reproducible reference, pin a commit hash or release tag, e.g.:
 ## License
 
 - **Code** (`scripts/`): [MIT](LICENSE).
-- **Data, manuscript, and media** (`data/`, `Manuscript.pdf`, `media/`, `assets/`):
+- **Data and media** (`data/`, `media/`, `assets/`):
   [CC-BY-4.0](data/LICENSE) — free to share and adapt with attribution.
 
 © 2026 Tristan O. Jadman.
