@@ -23,6 +23,7 @@ The **firmware and simulation source code** live in the companion repository:
 | `data/README.md` | Column schema, cleaning rules, and run details. |
 | `scripts/` | Cleaning and figure/timelapse generation scripts. |
 | `media/ripening_timelapse.mp4` | The Run 2 ripening timelapse (chamber camera vs. true-colour bench). |
+| `digital_twin_viz/` | 3D digital-twin visualization (Panda3D dual-chamber demo + WebSocket dashboard). |
 
 Each row of telemetry is a once-per-minute sample; column meanings are documented
 in `data/README.md`.

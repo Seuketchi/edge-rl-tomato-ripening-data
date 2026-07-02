@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edge-RL — Tomato Ripening AI</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green:#2a7a3b; --green-dark:#1a5028;
+      --red:#c84b38; --blue:#3a6abf; --orange:#e8883a;
+      --bg:#f4f4f1; --card:#fff; --border:#e0e0e0;
+      --text:#1a1a1a; --muted:#888;
+      --font:Georgia,'Times New Roman',serif;
+      --mono:'Courier New',monospace;
+    }
+    body { font-family:var(--font); background:var(--bg); color:var(--text); min-height:100vh; }
+    .app { max-width:1200px; margin:0 auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
+
+    /* Header */
+    .header {
+      background:var(--green-dark); color:white;
+      border-radius:10px; padding:14px 22px;
+      display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;
+    }
+    .header h1 { font-size:21px; letter-spacing:.02em; font-weight:normal; }
+    .header .tagline { font-size:12px; opacity:.65; margin-top:3px; font-style:italic; }
+    .header-right { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+    .badge { padding:3px 9px; border-radius:4px; font-size:11px; font-family:var(--mono); font-weight:bold; }
+    .badge-conn      { background:rgba(255,255,255,.15); color:#faa; }
+    .badge-conn.on   { color:#afa; }
+    .badge-info      { background:rgba(255,255,255,.12); color:rgba(255,255,255,.8); }
+
+    /* Scenario cards */
+    .scenarios-wrap { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px; }
+    .scenarios-hdr  { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:10px; }
+    .scenario-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+    .sc-card {
+      border:2px solid var(--border); border-radius:8px; padding:13px;
+      cursor:pointer; transition:border-color .15s,background .15s,transform .1s;
+      position:relative;
+    }
+    .sc-card:hover  { background:#fafaf8; transform:translateY(-1px); }
+    .sc-card.active { border-color:var(--green); background:#f0f8f2; }
+    .sc-card.unavail{ opacity:.45; cursor:default; pointer-events:none; }
+    .sc-icon {
+      display:inline-block; font-size:10px; font-family:var(--mono); font-weight:bold;
+      padding:3px 8px; border-radius:3px; color:white;
+      margin-bottom:8px; letter-spacing:.04em;
+      background:var(--green);
+    }
+    .sc-icon.cat-compare { background:var(--blue); }
+    .sc-icon.cat-interactive { background:#9a6a10; }
+    .sc-title { font-size:13px; font-weight:bold; margin-bottom:3px; }
+    .sc-what  { font-size:11px; color:var(--muted); font-style:italic; line-height:1.4; }
+    .sc-badge {
+      position:absolute; top:7px; right:7px;
+      font-size:9px; padding:2px 5px; border-radius:3px;
+      font-family:var(--mono); font-weight:bold;
+      background:#eee; color:#999;
+    }
+    .sc-badge.running { background:#fff3e0; color:#e65100; }
+    .sc-badge.done    { background:#efe; color:#060; }
+
+    /* Context bar */
+    .context-bar {
+      background:var(--card); border:1px solid var(--border); border-radius:10px;
+      padding:12px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+    }
+    .context-desc { flex:1; min-width:200px; }
+    .context-desc strong { font-size:14px; display:block; margin-bottom:3px; }
+    .context-desc p { font-size:12px; color:#555; font-style:italic; line-height:1.5; }
+    .context-controls { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .btn {
+      padding:6px 16px; border-radius:5px; border:1px solid #ccc;
+      background:var(--card); font-family:var(--font); font-size:13px; cursor:pointer;
+      letter-spacing:.01em;
+    }
+    .btn:hover:not(:disabled) { background:#f5f5f5; }
+    .btn:disabled { opacity:.4; cursor:default; }
+    .btn-primary { background:var(--green); color:white; border-color:var(--green); }
+    .btn-primary:hover:not(:disabled) { background:var(--green-dark); }
+    .speed-wrap { display:flex; align-items:center; gap:6px; font-size:12px; color:#666; }
+    input[type=range] { width:70px; accent-color:var(--green); }
+
+    /* Panel */
+    .panel { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px; }
+    .panel-title {
+      font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
+      margin-bottom:10px; padding-bottom:5px; border-bottom:1px solid #f0f0f0;
+    }
+
+    /* Single view */
+    .single-view { display:grid; grid-template-columns:220px 1fr; gap:10px; align-items:start; }
+    @media(max-width:680px){ .single-view { grid-template-columns:1fr; } }
+
+    /* Tomato panel */
+    .tomato-panel { text-align:center; }
+    .tomato-circle {
+      width:100px; height:100px; border-radius:50%;
+      margin:0 auto 10px; background:#3a7d44;
+      border:4px solid #ddd;
+      transition:background .5s ease, border-color .5s ease;
+      box-shadow:0 4px 14px rgba(0,0,0,.12);
+    }
+    .tomato-stage { font-size:22px; color:#1a1a1a; font-weight:bold; margin-bottom:3px; letter-spacing:.01em; }
+    .tomato-pct   { font-size:13px; color:#888; font-style:italic; margin-bottom:12px; }
+
+    .day-bar-wrap  { margin-bottom:12px; }
+    .day-bar-lbl   { display:flex; justify-content:space-between; font-size:11px; color:#888; margin-bottom:4px; }
+    .day-bar-bg    { height:8px; background:#eee; border-radius:4px; position:relative; overflow:visible; }
+    .day-bar-fill  { height:100%; background:var(--green); border-radius:4px; transition:width .3s; max-width:100%; }
+    .day-bar-target{
+      position:absolute; top:-3px; width:3px; height:14px;
+      background:#c8a838; border-radius:2px; transform:translateX(-50%);
+    }
+    .day-bar-tlbl  {
+      position:absolute; top:14px; font-size:9px; color:#c8a838;
+      transform:translateX(-50%); white-space:nowrap;
+    }
+
+    .metric-list {}
+    .metric-row { display:flex; justify-content:space-between; font-size:12px; padding:5px 0; border-bottom:1px solid #f5f5f5; }
+    .metric-lbl  { color:#888; }
+    .metric-val  { font-family:var(--mono); font-weight:bold; }
+    .metric-val.ambient-override { color:var(--orange); }
+
+    /* Right column */
+    .right-col { display:flex; flex-direction:column; gap:10px; }
+
+    /* Narrative */
+    .narrative-panel { min-height:88px; }
+    .narrative-action {
+      font-size:16px; font-weight:bold; margin-bottom:6px;
+      min-height:25px; color:var(--text);
+      display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    }
+    .action-tag {
+      display:inline-block; padding:3px 10px; border-radius:4px;
+      font-size:11px; font-weight:bold; font-family:var(--mono);
+      letter-spacing:.04em;
+    }
+    .tag-maintain { background:#eee; color:#555; }
+    .tag-heat     { background:#fee; color:var(--red); }
+    .tag-cool     { background:#e8eef8; color:var(--blue); }
+    .narrative-agent { font-size:12px; color:#aaa; font-family:var(--font); font-weight:normal; }
+    .narrative-desc  { font-size:13px; color:#666; font-family:var(--font); font-weight:normal; }
+    .narrative-text  { font-size:13px; color:#555; line-height:1.6; font-style:italic; min-height:38px; }
+
+    /* Chart */
+    canvas { display:block; width:100%; }
+    #singleChart  { height:200px; }
+    #compareChart { height:300px; }
+    .chart-legend { display:flex; gap:14px; margin-top:8px; font-size:11px; color:#666; flex-wrap:wrap; align-items:center; }
+    .leg-dot { display:inline-block; width:9px; height:9px; border-radius:50%; vertical-align:middle; margin-right:3px; }
+    .leg-action-dot { display:inline-block; width:8px; height:8px; border-radius:50%; vertical-align:middle; margin-right:3px; }
+
+    /* Compare / race */
+    .compare-view { display:flex; flex-direction:column; gap:10px; }
+    .race-cards   { display:flex; gap:8px; flex-wrap:wrap; }
+    .race-card {
+      flex:1; min-width:120px;
+      border:2px solid var(--c,#ddd); border-radius:8px;
+      padding:11px; background:color-mix(in srgb, var(--c,#ddd) 8%, white);
+      position:relative;
+    }
+    .rc-name   { font-weight:bold; color:var(--c,#888); font-size:13px; margin-bottom:6px; }
+    .rc-stage  { font-size:18px; font-weight:bold; color:#333; margin-bottom:2px; }
+    .rc-pct    { font-size:11px; color:#aaa; margin-bottom:4px; }
+    .rc-action { font-size:11px; color:#666; margin-bottom:3px; font-family:var(--mono); }
+    .rc-day    { font-size:11px; color:#aaa; }
+    .rc-win    {
+      display:inline-block; font-size:9px; padding:2px 6px; border-radius:3px;
+      background:#e8f5ea; color:#1a5028; border:1px solid #a8d5b0;
+      font-family:var(--mono); font-weight:bold; margin-top:5px;
+      letter-spacing:.04em;
+    }
+
+    /* Result */
+    .result-hdr    { display:flex; align-items:flex-start; gap:14px; margin-bottom:14px; }
+    .result-icon   {
+      width:60px; height:60px; border-radius:8px; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center;
+      font-size:11px; font-family:var(--mono); font-weight:bold;
+      letter-spacing:.05em; border:2px solid #ddd; color:#aaa; background:#f8f8f8;
+    }
+    .result-icon.good { background:#e8f5ea; color:var(--green-dark); border-color:#a8d5b0; }
+    .result-icon.ok   { background:#fff3e0; color:#b86a00;           border-color:#f0c860; }
+    .result-icon.bad  { background:#fdecea; color:var(--red);        border-color:#f0b0a8; }
+    .result-icon.best { background:#e8f5ea; color:var(--green-dark); border-color:#a8d5b0; }
+    .result-hdr-text { padding-top:4px; }
+    .result-hdr h2 { font-size:19px; font-weight:bold; }
+    .result-verdict{ font-size:12px; color:#555; font-style:italic; margin-top:4px; }
+
+    /* Bottom-line result box */
+    .bottom-line {
+      border-left:5px solid #c0e0c8; border-radius:8px;
+      padding:14px 18px; margin-bottom:12px;
+      background:#f8fbf9;
+    }
+    .bottom-line.warn { border-left-color:#f0c060; background:#fdfaf0; }
+    .bottom-line.bad  { border-left-color:#f0a8a0; background:#fdf8f8; }
+    .bl-verdict {
+      font-size:16px; font-weight:bold; margin-bottom:8px; color:var(--green-dark);
+    }
+    .bl-verdict.warn { color:#8a5a00; }
+    .bl-verdict.bad  { color:var(--red); }
+    .bl-row { font-size:13px; color:#444; margin-bottom:5px; line-height:1.5; }
+    .bl-row strong { color:#1a1a1a; }
+    .bl-row.warn { color:#8a5a00; }
+    .bl-row.good { color:var(--green-dark); }
+    .bl-row.bad  { color:var(--red); }
+
+    .result-stats  { margin-bottom:12px; }
+
+    .results-table { width:100%; border-collapse:collapse; font-size:13px; margin-top:8px; }
+    .results-table th {
+      background:#f5f5f5; padding:8px 10px; text-align:left;
+      font-weight:normal; font-size:10px; text-transform:uppercase;
+      letter-spacing:.06em; color:#888; border-bottom:2px solid #ddd;
+    }
+    .results-table td { padding:8px 10px; border-bottom:1px solid #eee; font-family:var(--mono); }
+    .results-table .winner td { background:#f0f8f0; }
+    .agent-name-cell { display:flex; align-items:center; gap:7px; font-family:var(--font); }
+    .color-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .rank-badge {
+      font-size:9px; font-family:var(--mono); font-weight:bold;
+      padding:1px 5px; border-radius:3px;
+      background:#e8f5ea; color:var(--green-dark); border:1px solid #a8d5b0;
+    }
+
+    /* Connecting overlay */
+    .conn-overlay {
+      position:fixed; inset:0; z-index:200; background:var(--bg);
+      display:flex; align-items:center; justify-content:center;
+      flex-direction:column; gap:14px;
+    }
+    .conn-overlay.hidden { display:none; }
+    .spinner {
+      width:42px; height:42px;
+      border:4px solid #ddd; border-top-color:var(--green);
+      border-radius:50%; animation:spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .conn-title { font-size:19px; color:#444; }
+    .conn-sub   { font-size:13px; color:#aaa; font-style:italic; }
+
+    /* Harvest overlay */
+    .harvest-overlay {
+      display:none; position:fixed; inset:0; z-index:100;
+      background:rgba(0,0,0,.6); align-items:center; justify-content:center;
+    }
+    .harvest-overlay.visible { display:flex; }
+    .harvest-card {
+      background:linear-gradient(135deg,#1a3a2a 0%,#2a7a3b 100%);
+      color:white; border-radius:16px; padding:40px 54px;
+      text-align:center; max-width:500px; width:90%;
+      box-shadow:0 24px 64px rgba(0,0,0,.5);
+      animation:pop .4s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes pop { from { transform:scale(.7); opacity:0; } to { transform:scale(1); opacity:1; } }
+    .hv-kicker  { font-size:11px; letter-spacing:.14em; text-transform:uppercase; opacity:.6; margin-bottom:12px; font-family:var(--mono); }
+    .hv-title   { font-size:28px; font-weight:bold; letter-spacing:.04em; margin-bottom:10px; }
+    .hv-quality { font-size:21px; font-family:var(--mono); color:#aef; margin-bottom:6px; }
+    .hv-detail  { font-size:13px; color:rgba(255,255,255,.6); margin-bottom:24px; }
+    .hv-btn {
+      padding:9px 30px; background:rgba(255,255,255,.18);
+      border:1px solid rgba(255,255,255,.4);
+      color:white; border-radius:6px; cursor:pointer;
+      font-size:14px; font-family:var(--font);
+    }
+    .hv-btn:hover { background:rgba(255,255,255,.3); }
+
+    /* Scenario controls panel */
+    .sc-ctrl-panel {
+      background:#fffbf0; border:1px solid #f0d880;
+      border-radius:10px; padding:14px 20px;
+    }
+    .sc-ctrl-hdr { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#b8860b; margin-bottom:10px; }
+    .sc-ctrl-row { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+    .sc-ctrl-lbl { min-width:140px; }
+    .sc-ctrl-lbl strong { font-size:14px; display:block; }
+    .sc-ctrl-lbl span   { font-size:11px; color:#888; font-style:italic; }
+    .sc-ctrl-slider { flex:1; min-width:180px; height:6px; accent-color:var(--green); cursor:pointer; }
+    .sc-ctrl-val { font-size:20px; font-family:var(--mono); font-weight:bold; color:#333; min-width:80px; text-align:right; }
+    .sc-ctrl-hint { font-size:11px; color:#aaa; margin-top:6px; font-style:italic; }
+
+    /* Demo mode (append ?demo) */
+    body.demo .header h1          { font-size:27px; }
+    body.demo .header .tagline    { font-size:15px; }
+    body.demo .sc-title           { font-size:16px; }
+    body.demo .sc-what            { font-size:13px; }
+    body.demo .context-desc strong{ font-size:17px; }
+    body.demo .context-desc p     { font-size:14px; }
+    body.demo .btn                { font-size:15px; padding:9px 20px; }
+    body.demo .tomato-circle      { width:130px; height:130px; }
+    body.demo .tomato-stage       { font-size:28px; }
+    body.demo .metric-row         { font-size:14px; padding:7px 0; }
+    body.demo .narrative-action   { font-size:19px; }
+    body.demo .narrative-text     { font-size:15px; }
+    body.demo .rc-stage           { font-size:22px; }
+    body.demo #singleChart        { height:240px; }
+    body.demo #compareChart       { height:360px; }
+    body.demo .results-table      { font-size:15px; }
+  </style>
+</head>
+<body>
+
+<div class="conn-overlay" id="connOverlay">
+  <div class="spinner"></div>
+  <div class="conn-title">Edge-RL Digital Twin</div>
+  <div class="conn-sub">Connecting to simulator…</div>
+</div>
+
+<div class="harvest-overlay" id="harvestOverlay">
+  <div class="harvest-card">
+    <div class="hv-kicker">Harvest complete</div>
+    <div class="hv-title">HARVESTED</div>
+    <div class="hv-quality" id="hvQuality">Quality: —</div>
+    <div class="hv-detail"  id="hvDetail">—</div>
+    <button class="hv-btn" onclick="dismissHarvest()">Continue</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <header class="header">
+    <div>
+      <h1>Edge-RL Digital Twin</h1>
+      <div class="tagline">Can a $33 microcontroller learn to ripen tomatoes at the right time?</div>
+    </div>
+    <div class="header-right">
+      <span class="badge badge-conn" id="connBadge">CONNECTING</span>
+      <span class="badge badge-info" id="targetBadge">target —</span>
+      <span id="seedBadge" style="display:none" onclick="togglePin()"></span>
+    </div>
+  </header>
+
+  <!-- Scenario selector -->
+  <div class="scenarios-wrap">
+    <div class="scenarios-hdr">Choose a scenario</div>
+    <div class="scenario-cards" id="scenarioCards"></div>
+  </div>
+
+  <!-- Context + controls -->
+  <div class="context-bar" id="contextBar">
+    <div class="context-desc">
+      <strong id="ctxTitle">—</strong>
+      <p id="ctxDesc">Select a scenario above to begin.</p>
+    </div>
+    <div class="context-controls">
+      <button class="btn btn-primary" id="btnStart" disabled>Run</button>
+      <button class="btn" id="btnPause" disabled>Pause</button>
+      <button class="btn" id="btnStep"  disabled>Step</button>
+      <button class="btn" id="btnReset" disabled>New run</button>
+      <div class="speed-wrap">
+        Speed: <input type="range" id="speedSlider" min="1" max="20" value="4">
+        <span id="speedLabel">4x</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scenario-specific controls (sliders) -->
+  <div class="sc-ctrl-panel" id="scCtrlPanel" style="display:none"></div>
+
+  <!-- Single-agent view -->
+  <div class="single-view" id="singleView" style="display:none">
+
+    <div class="panel tomato-panel">
+      <div class="tomato-circle" id="tomatoColor"></div>
+      <div class="tomato-stage" id="stageLabel">—</div>
+      <div class="tomato-pct"   id="xValue">—</div>
+
+      <div class="day-bar-wrap">
+        <div class="day-bar-lbl">
+          <span>Day 0</span><span id="dayBarRight">—</span>
+        </div>
+        <div class="day-bar-bg" id="dayBarBg">
+          <div class="day-bar-fill"   id="dayBarFill"   style="width:0%"></div>
+          <div class="day-bar-target" id="dayBarTarget" style="left:50%">
+            <div class="day-bar-tlbl" id="dayBarTLbl">target</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-list">
+        <div class="metric-row">
+          <span class="metric-lbl">Chamber temp</span>
+          <span class="metric-val" id="envTemp">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-lbl">Humidity</span>
+          <span class="metric-val" id="envHum">—</span>
+        </div>
+        <div class="metric-row" id="ambientRow" style="display:none">
+          <span class="metric-lbl">Ambient (forced)</span>
+          <span class="metric-val ambient-override" id="envAmbient">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-lbl">Time elapsed</span>
+          <span class="metric-val" id="envDay">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="right-col">
+      <div class="panel narrative-panel">
+        <div class="narrative-action" id="narrativeAction"></div>
+        <div class="narrative-text"   id="narrativeText">Select a scenario above and press Run.</div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Ripening Over Time <span style="font-style:italic;font-weight:normal;color:#ccc">— green line falling means the tomato is getting riper</span></div>
+        <canvas id="singleChart"></canvas>
+        <div class="chart-legend">
+          <span><span class="leg-dot" style="background:#2a7a3b"></span>Ripeness</span>
+          <span><span class="leg-dot" style="background:#c05a2a"></span>Chamber temp</span>
+          <span style="color:#aaa;font-style:italic">actions:</span>
+          <span><span class="leg-action-dot" style="background:#999"></span>no change</span>
+          <span><span class="leg-action-dot" style="background:#c84b38"></span>heated</span>
+          <span><span class="leg-action-dot" style="background:#3a6abf"></span>cooled</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Compare / race view -->
+  <div class="compare-view" id="compareView" style="display:none">
+    <div class="race-cards" id="raceCards"></div>
+    <div class="panel">
+      <div class="panel-title" id="compareTitle">Ripening Race — same tomato, same starting conditions, same deadline</div>
+      <canvas id="compareChart"></canvas>
+      <div class="chart-legend" id="compareLegend"></div>
+    </div>
+  </div>
+
+  <!-- Result panel -->
+  <div class="panel" id="resultPanel" style="display:none">
+    <div class="result-hdr">
+      <div class="result-icon" id="resultIcon"></div>
+      <div class="result-hdr-text">
+        <h2 id="resultTitle">Episode Complete</h2>
+        <div class="result-verdict" id="resultVerdict"></div>
+      </div>
+    </div>
+    <div class="result-stats" id="resultStats"></div>
+    <div id="resultTableWrap" style="display:none">
+      <table class="results-table" id="resultsTable">
+        <thead>
+          <tr>
+            <th>Approach</th><th>Score</th><th>Harvest Quality</th>
+            <th>How early / late</th><th>Harvested on Day</th>
+          </tr>
+        </thead>
+        <tbody id="resultsTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- .app -->
+
+<script>
+// ── Constants ────────────────────────────────────────────────────────
+const STAGES     = ['Green','Breaker','Turning','Pink','Light Red','Red'];
+const ROYG_X     = [1.0, 0.85, 0.65, 0.40, 0.15, 0.0];
+const ROYG_RGB   = [[58,125,68],[125,165,58],[201,168,37],[232,140,58],[217,79,58],[192,48,42]];
+const ACT_LABELS = ['Maintain','Heat','Cool'];
+const ACT_COLORS = ['#999','#c84b38','#3a6abf'];
+const ACT_TAGS   = ['tag-maintain','tag-heat','tag-cool'];
+
+// ── Scenarios ─────────────────────────────────────────────────────────
+const SCENARIOS = [
+  {
+    id:'rl', icon:'AI', cat:'single', title:'RL Control',
+    what:'What if the AI is in charge?',
+    desc:'Our trained DQN policy — 5,443 parameters distilled to run on a $33 ESP32-S3. Watch how it actively manages temperature to hit the target harvest day.',
+    mode:'single', agent:'dqn',
+  },
+  {
+    id:'none', icon:'OFF', cat:'single', title:'No Control',
+    what:'What if we do nothing?',
+    desc:'Maintain constant conditions and let ambient temperature do the work. The traditional approach — no active heating or cooling. Will it ripen on time?',
+    mode:'single', agent:'fixed_day',
+  },
+  {
+    id:'heat', icon:'HOT', cat:'single', title:'Naive Heuristic',
+    what:'What if we just heat until it ripens?',
+    desc:'A fixed rule: heat aggressively for the first 65% of ripening, then hold. No learning, no timing awareness. It ripens fast — but does it ripen on the right day?',
+    mode:'single', agent:'fixed_stage5',
+  },
+  {
+    id:'random', icon:'RND', cat:'single', title:'Random Control',
+    what:'What if we act randomly?',
+    desc:'A controller that picks maintain, heat, or cool at random each step. The baseline floor — any useful strategy must beat this.',
+    mode:'single', agent:'random',
+  },
+  {
+    id:'race', icon:'VS', cat:'compare', title:'Head-to-Head',
+    what:'How does RL compare to the alternatives?',
+    desc:'All four approaches run on the exact same tomato — same target day, same starting conditions. Same game, different players. Who gets the best harvest?',
+    mode:'compare', agents:['dqn','fixed_day','fixed_stage5','random'],
+  },
+  {
+    id:'algos', icon:'ALG', cat:'compare', title:'Algorithm Battle',
+    what:'Which RL algorithm wins?',
+    desc:'Three different RL algorithms — DQN, PPO, and A2C — trained on the same simulator. Same environment, different training approaches. Which strategy emerged?',
+    mode:'compare', agents:['dqn','ppo','a2c'],
+  },
+  {
+    id:'short_target', icon:'3d', cat:'compare', title:'Tight Deadline',
+    what:'What if the target is only 3 days?',
+    desc:'Forces a 3-day target on all agents. With barely any time, the naive heuristic can compete — there is no room for precision timing. This is one condition where DQN does not always win.',
+    mode:'compare', agents:['dqn','fixed_stage5','fixed_day'],
+    forcedTargetDay: 3.0,
+  },
+  {
+    id:'hot_ambient', icon:'35°', cat:'compare', title:'Hot Ambient',
+    what:'What if the room is already 35°C?',
+    desc:'Ambient forced to 35°C — the tomato ripens fast on its own, no heating needed. Passive no-control can match or beat RL when nature does the work.',
+    mode:'compare', agents:['dqn','fixed_day','random'],
+    forcedAmbientTemp: 35.0,
+  },
+  {
+    id:'custom_target', icon:'DAY', cat:'interactive', title:'Set Your Target',
+    what:'What if you choose the deadline?',
+    desc:'Pick any target from 3 to 7 days. The slider resets the simulation so you can compare how DQN adapts its strategy across tight and relaxed windows.',
+    mode:'single', agent:'dqn',
+    controls:[
+      { id:'targetDay', label:'Target Harvest Day', min:3, max:7, step:0.5, default:5, unit:'days',
+        cmd:'set_forced_target', param:'target_day', resetOnChange:true },
+    ],
+  },
+  {
+    id:'live_temp', icon:'TEMP', cat:'interactive', title:'Control Temperature',
+    what:'What if you change the ambient temperature mid-run?',
+    desc:'Drag the slider while the simulation is running. Watch the RL agent respond in real time — heating when the room cools down, braking when it heats up.',
+    mode:'single', agent:'dqn',
+    controls:[
+      { id:'ambientTemp', label:'Ambient Temperature', min:15, max:42, step:1, default:27, unit:'°C',
+        cmd:'set_ambient_temp', param:'temp', resetOnChange:false },
+    ],
+  },
+];
+
+// ── State ─────────────────────────────────────────────────────────────
+let ws, reconnectTimer;
+let catalogue = {};
+let currentScenario = null;
+let compareMode = false;
+let singleHist = { hours:[], ripeness:[], temperature:[], humidity:[], actions:[] };
+let compareData = {};
+let simRunning = false;
+let currentSeed = null, pinnedSeed = null;
+
+if (new URLSearchParams(location.search).has('demo')) document.body.classList.add('demo');
+
+// ── Catalogue → build cards ───────────────────────────────────────────
+function buildCatalogue(agents) {
+  catalogue = agents;
+  const wrap = document.getElementById('scenarioCards');
+  wrap.innerHTML = '';
+  SCENARIOS.forEach(sc => {
+    const avail = sc.mode === 'compare'
+      ? (sc.agents || []).some(a => catalogue[a]?.available !== false)
+      : catalogue[sc.agent]?.available !== false;
+    const card = document.createElement('div');
+    card.className = 'sc-card' + (avail ? '' : ' unavail');
+    card.id = `sc-${sc.id}`;
+    const catCls = sc.cat === 'compare' ? 'cat-compare' : sc.cat === 'interactive' ? 'cat-interactive' : '';
+    card.innerHTML = `
+      <div class="sc-badge" id="scb-${sc.id}"></div>
+      <div class="sc-icon ${catCls}">${sc.icon}</div>
+      <div class="sc-title">${sc.title}</div>
+      <div class="sc-what">${sc.what}</div>`;
+    if (avail) card.onclick = () => selectScenario(sc);
+    wrap.appendChild(card);
+  });
+}
+
+function setBadge(id, text, cls) {
+  const el = document.getElementById(`scb-${id}`);
+  if (el) { el.textContent = text; el.className = `sc-badge ${cls}`; }
+}
+
+// ── Select scenario ───────────────────────────────────────────────────
+function selectScenario(sc) {
+  currentScenario = sc;
+  SCENARIOS.forEach(s => document.getElementById(`sc-${s.id}`)?.classList.toggle('active', s.id === sc.id));
+
+  document.getElementById('ctxTitle').textContent = `${sc.title} — ${sc.what}`;
+  document.getElementById('ctxDesc').textContent  = sc.desc;
+  ['btnStart','btnStep','btnReset'].forEach(id => document.getElementById(id).disabled = false);
+
+  compareMode = sc.mode === 'compare';
+  resetUIState();
+  renderScenarioControls(sc);
+
+  const forcedOpts = {
+    forced_target_day:   sc.forcedTargetDay   ?? null,
+    forced_ambient_temp: sc.forcedAmbientTemp ?? null,
+  };
+
+  if (compareMode) {
+    document.getElementById('singleView').style.display = 'none';
+    document.getElementById('compareView').style.display = '';
+    buildRaceCards(sc.agents);
+    buildCompareLegend(sc.agents);
+    send({ cmd:'set_compare', agents:sc.agents, ...forcedOpts });
+  } else {
+    document.getElementById('singleView').style.display = '';
+    document.getElementById('compareView').style.display = 'none';
+    document.getElementById('narrativeText').textContent = 'Preparing simulation…';
+    send({ cmd:'set_single', agent:sc.agent, ...forcedOpts });
+  }
+
+  // Auto-start
+  setTimeout(() => {
+    if (!simRunning) {
+      send({ cmd:'start' });
+      simRunning = true;
+      document.getElementById('btnStart').disabled = true;
+      document.getElementById('btnPause').disabled = false;
+      setBadge(sc.id, 'running', 'running');
+    }
+  }, 600);
+}
+
+// ── Scenario controls (sliders) ───────────────────────────────────────
+function renderScenarioControls(sc) {
+  const panel = document.getElementById('scCtrlPanel');
+  document.getElementById('ambientRow').style.display = 'none';
+
+  if (!sc.controls?.length) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+
+  panel.style.display = '';
+  panel.innerHTML = `<div class="sc-ctrl-hdr">Interactive Controls</div>`;
+
+  sc.controls.forEach(ctrl => {
+    const currentVal = ctrl.default;
+    const row = document.createElement('div');
+    row.innerHTML = `
+      <div class="sc-ctrl-row">
+        <div class="sc-ctrl-lbl">
+          <strong>${ctrl.label}</strong>
+          <span>${ctrl.resetOnChange ? 'Resets simulation on change' : 'Updates live — no reset'}</span>
+        </div>
+        <input class="sc-ctrl-slider" type="range"
+          id="ctrl-${ctrl.id}" min="${ctrl.min}" max="${ctrl.max}" step="${ctrl.step}" value="${currentVal}">
+        <div class="sc-ctrl-val" id="ctrlval-${ctrl.id}">${currentVal} ${ctrl.unit}</div>
+      </div>
+      <div class="sc-ctrl-hint" id="ctrlhint-${ctrl.id}"></div>`;
+    panel.appendChild(row);
+
+    const slider = document.getElementById(`ctrl-${ctrl.id}`);
+    const valEl  = document.getElementById(`ctrlval-${ctrl.id}`);
+    const hintEl = document.getElementById(`ctrlhint-${ctrl.id}`);
+
+    slider.oninput = () => {
+      const v = parseFloat(slider.value);
+      valEl.textContent = `${v} ${ctrl.unit}`;
+      updateControlHint(ctrl, v, hintEl);
+    };
+    slider.onchange = () => {
+      const v = parseFloat(slider.value);
+      const msg = { cmd: ctrl.cmd, [ctrl.param]: v };
+      if (ctrl.resetOnChange) {
+        msg.same_seed = true;
+        msg.auto_restart = true;
+        simRunning = false;
+        document.getElementById('btnStart').disabled = true;
+        document.getElementById('btnPause').disabled = true;
+      }
+      send(msg);
+      if (!ctrl.resetOnChange) {
+        document.getElementById('ambientRow').style.display = '';
+        document.getElementById('envAmbient').textContent = `${v} °C (forced)`;
+      }
+    };
+
+    if (ctrl.id === 'ambientTemp') {
+      document.getElementById('ambientRow').style.display = '';
+      document.getElementById('envAmbient').textContent = `${ctrl.default} °C`;
+    }
+
+    updateControlHint(ctrl, ctrl.default, hintEl);
+  });
+}
+
+function updateControlHint(ctrl, v, el) {
+  if (ctrl.id === 'targetDay') {
+    el.textContent = v <= 3.5 ? 'Tight window — agent must act fast'
+                   : v >= 6.5 ? 'Relaxed window — agent can be precise'
+                   :             'Moderate window — balance of speed and timing';
+  } else if (ctrl.id === 'ambientTemp') {
+    el.textContent = v >= 35 ? 'Hot — natural ripening fast, cooling actions may appear'
+                   : v <= 20 ? 'Cold — slow natural rate, heating actions expected'
+                   :            'Normal — baseline conditions';
+  }
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const port  = location.port ? `:${location.port}` : '';
+  ws = new WebSocket(`${proto}//${location.hostname || '127.0.0.1'}${port}`);
+  ws.onopen  = () => {
+    setConn(true);
+    clearTimeout(reconnectTimer);
+    document.getElementById('connOverlay').classList.add('hidden');
+  };
+  ws.onclose = () => { setConn(false); reconnectTimer = setTimeout(connect, 2000); };
+  ws.onerror = () => ws.close();
+  ws.onmessage = e => dispatch(JSON.parse(e.data));
+}
+function send(msg) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); }
+function setConn(ok) {
+  const b = document.getElementById('connBadge');
+  b.textContent = ok ? 'LIVE' : 'OFFLINE';
+  b.className   = 'badge badge-conn' + (ok ? ' on' : '');
+}
+
+// ── Dispatch ──────────────────────────────────────────────────────────
+function dispatch(s) {
+  if (s.event === 'catalogue') { buildCatalogue(s.agents); return; }
+  if (!currentScenario) return;
+  if (s.mode === 'single' || s.event === 'reset') updateSingle(s);
+  else if (s.mode === 'compare') updateCompare(s);
+  if (s.event === 'done')         onSingleDone(s);
+  if (s.event === 'compare_done') onCompareDone(s);
+}
+
+// ── Reset UI ──────────────────────────────────────────────────────────
+function resetUIState() {
+  simRunning = false;
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnPause').disabled = true;
+  document.getElementById('resultPanel').style.display = 'none';
+  document.getElementById('scCtrlPanel').style.display = 'none';
+  document.getElementById('ambientRow').style.display = 'none';
+  singleHist = { hours:[], ripeness:[], temperature:[], humidity:[], actions:[] };
+  compareData = {};
+  resizeSingleChart();
+  if (compareMode) resizeCompareChart();
+}
+
+// ── Single update ─────────────────────────────────────────────────────
+function updateSingle(s) {
+  if (s.seed !== undefined) {
+    currentSeed = s.seed;
+    document.getElementById('seedBadge').textContent = pinnedSeed !== null ? `pinned:${s.seed}` : `seed ${s.seed}`;
+  }
+  document.getElementById('targetBadge').textContent = `delivery: Day ${s.targetDay ?? '—'}`;
+
+  const x = s.ripeness ?? 1;
+  const col = roygColor(x);
+  document.getElementById('tomatoColor').style.background = col;
+  document.getElementById('tomatoColor').style.borderColor = roygColor(Math.max(0, x - 0.12));
+
+  const stageIdx = Math.min(s.ripenessStage ?? 0, 5);
+  document.getElementById('stageLabel').textContent = STAGES[stageIdx];
+  const ripePct = Math.round(Math.min(100, Math.max(0, (1 - x) / 0.85 * 100)));
+  document.getElementById('xValue').textContent = ripePct + '% toward harvest';
+
+  document.getElementById('envTemp').textContent = (s.temperature?.toFixed(1) ?? '—') + ' °C';
+  document.getElementById('envHum').textContent  = (s.humidity?.toFixed(0) ?? '—') + ' %';
+  document.getElementById('envDay').textContent  = `Day ${(s.days ?? 0).toFixed(1)}`;
+
+  const day    = s.days ?? 0;
+  const maxDay = Math.max(s.targetDay ?? 7, day + 0.5, 7);
+  const pct    = Math.min(100, (day / maxDay) * 100);
+  const tPct   = Math.min(98, Math.max(2, ((s.targetDay ?? 5) / maxDay) * 100));
+  document.getElementById('dayBarFill').style.width  = pct + '%';
+  document.getElementById('dayBarTarget').style.left = tPct + '%';
+  document.getElementById('dayBarTLbl').textContent  = `Delivery Day ${s.targetDay ?? '—'}`;
+  document.getElementById('dayBarRight').textContent = `Day ${day.toFixed(1)} now`;
+
+  if (currentScenario?.id === 'live_temp' && s.ambientTempMean !== undefined) {
+    document.getElementById('envAmbient').textContent = `${s.ambientTempMean.toFixed(0)} °C`;
+  }
+
+  if (s.action !== undefined) updateNarrative(s);
+
+  if (s.history?.hours?.length) {
+    singleHist = s.history;
+    drawSingleChart();
+  }
+}
+
+// ── Narrative ─────────────────────────────────────────────────────────
+const ACTION_PLAIN = {
+  maintain: 'Conditions are on track — no change.',
+  heat:     'Heat the chamber +1°C to speed up ripening.',
+  cool:     'Cool the chamber -1°C to avoid ripening too early.',
+};
+const AGENT_SHORT = {
+  dqn: 'AI System', ppo: 'AI (PPO)', a2c: 'AI (A2C)',
+  dqn_a: 'AI Variant A', dqn_c: 'AI Variant C',
+  fixed_day: 'Traditional (no control)', fixed_stage5: 'Naive heuristic',
+  random: 'Random controller',
+};
+
+function updateNarrative(s) {
+  const x      = s.ripeness ?? 1;
+  const actId  = ['maintain','heat','cool'].indexOf(s.action);
+  const tagCls = ACT_TAGS[Math.max(0, actId)];
+  const agent  = AGENT_SHORT[s.agentId] ?? s.agentLabel ?? 'System';
+  const day    = s.days ?? 0;
+  const target = s.targetDay ?? 5;
+  const dLeft  = target - day;
+  const scId   = currentScenario?.id;
+  const ripePct = Math.round(Math.min(100, Math.max(0, (1 - x) / 0.85 * 100)));
+
+  const actionDesc = ACTION_PLAIN[s.action] ?? s.action;
+  document.getElementById('narrativeAction').innerHTML =
+    `<span class="narrative-agent">${agent}</span>` +
+    `<span class="action-tag ${tagCls}">${ACT_LABELS[actId]}</span>` +
+    `<span class="narrative-desc">${actionDesc}</span>`;
+
+  let txt = '';
+  if (x > 0.8)
+    txt = `The tomato is still green (${ripePct}% toward harvest). ${dLeft.toFixed(1)} days until delivery. The system is managing the temperature to build a steady ripening pace.`;
+  else if (x > 0.65)
+    txt = `First color change — the breaker stage (${ripePct}% toward harvest). The tomato is transitioning from green. ${Math.abs(dLeft).toFixed(1)} days ${dLeft >= 0 ? 'to go' : 'past deadline'}.`;
+  else if (x > 0.40)
+    txt = `Color shifting orange — turning stage (${ripePct}% toward harvest). ${dLeft > 0.5 ? `${dLeft.toFixed(1)} days left to reach delivery target.` : dLeft > 0 ? 'Almost at the delivery window.' : 'Past the target — waiting for full ripeness.'}`;
+  else if (x > 0.15)
+    txt = `Nearly ready — pink to light-red (${ripePct}% toward harvest). ${dLeft > 0 ? `${dLeft.toFixed(1)} day${dLeft < 1 ? '' : 's'} until delivery. Final timing stretch.` : `${Math.abs(dLeft).toFixed(1)} days past target — auto-harvest imminent.`}`;
+  else
+    txt = `The tomato has reached the harvest threshold — fully ripe and ready for market.`;
+
+  if (scId === 'none')   txt += ' No active control — chamber holds constant temperature.';
+  if (scId === 'heat' && s.action === 'heat') txt += ' Fixed rule: heat aggressively — no timing awareness.';
+  if (scId === 'random') txt += ' Random controller — no strategy, picks actions by chance.';
+  if (scId === 'hot_ambient' || (currentScenario?.forcedAmbientTemp && s.action === 'cool'))
+    txt += ' Hot ambient temperature is driving fast natural ripening.';
+
+  document.getElementById('narrativeText').textContent = txt;
+}
+
+// ── Single done ────────────────────────────────────────────────────────
+function onSingleDone(s) {
+  simRunning = false;
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnPause').disabled = true;
+  if (currentScenario) setBadge(currentScenario.id, 'done', 'done');
+  if (s.harvestQuality !== undefined) showHarvest(s.harvestQuality, s.timingError, s.days);
+  showSingleResult(s);
+}
+
+function showSingleResult(s) {
+  const panel = document.getElementById('resultPanel');
+  panel.style.display = '';
+  document.getElementById('resultTableWrap').style.display = 'none';
+
+  const quality = s.harvestQuality ?? 0;
+  const err     = s.timingError ?? 0;
+  const day     = s.days ?? 0;
+  const target  = s.targetDay ?? 5;
+
+  const earlyLate = day < target - 0.1 ? `${(target - day).toFixed(1)} day${(target - day) >= 1 ? 's' : ''} early`
+                  : day > target + 0.1 ? `${(day - target).toFixed(1)} day${(day - target) >= 1 ? 's' : ''} late`
+                  : 'exactly on time';
+  const timingOk  = err < 0.5 ? 'good' : err < 1.5 ? 'warn' : 'bad';
+  const qualOk    = quality > 0.8 ? 'good' : quality > 0.5 ? 'warn' : 'bad';
+
+  const scVerdict = {
+    rl:           err < 1   ? 'Active temperature control delivered a well-timed harvest.'
+                            : 'The AI harvested slightly early — a common trade-off for securing quality.',
+    none:         'Without temperature control, ripening timing depended on ambient conditions alone.',
+    heat:         'The naive heuristic heated aggressively — ripening happened fast, but likely ahead of the delivery window.',
+    random:       'Random temperature decisions led to unpredictable ripening timing.',
+    short_target: err < 0.5 ? 'Even with a 3-day deadline, the system found the timing window.'
+                            : 'A 3-day deadline is very tight — most strategies struggle here.',
+    hot_ambient:  'In hot conditions, the tomato ripened quickly without any intervention needed.',
+    custom_target:'The AI adapted its strategy to the delivery date you set.',
+    live_temp:    'The AI responded in real time to your temperature changes.',
+  }[currentScenario?.id] ?? '';
+
+  const iconEl = document.getElementById('resultIcon');
+  if (err < 0.5 && quality > 0.8) { iconEl.textContent = 'GOOD'; iconEl.className = 'result-icon good'; }
+  else if (err < 1.5)              { iconEl.textContent = 'CLOSE'; iconEl.className = 'result-icon ok'; }
+  else                             { iconEl.textContent = 'MISS'; iconEl.className = 'result-icon bad'; }
+
+  document.getElementById('resultTitle').textContent   = `Harvested on Day ${day.toFixed(1)} — target was Day ${target}`;
+  document.getElementById('resultVerdict').textContent = scVerdict;
+
+  const blCls = timingOk === 'good' ? '' : timingOk === 'warn' ? ' warn' : ' bad';
+  document.getElementById('resultStats').innerHTML = `
+    <div class="bottom-line${blCls}">
+      <div class="bl-verdict${blCls}">${err < 0.5 ? 'On schedule' : err < 1.5 ? `Close — off by ${err.toFixed(1)} day${err >= 1 ? 's' : ''}` : `Off target — ${err.toFixed(1)} days ${earlyLate}`}</div>
+      <div class="bl-row ${timingOk}">The tomato ripened <strong>${earlyLate}</strong> (target: Day ${target}, actual: Day ${day.toFixed(1)})</div>
+      <div class="bl-row ${qualOk}">Harvest quality: <strong>${(quality*100).toFixed(0)}%</strong>${quality > 0.8 ? ' — market-ready' : quality > 0.5 ? ' — acceptable' : ' — below standard'}</div>
+      ${scVerdict ? `<div class="bl-row" style="color:#888;margin-top:6px;font-style:italic">${scVerdict}</div>` : ''}
+    </div>`;
+}
+
+// ── Harvest overlay ────────────────────────────────────────────────────
+function showHarvest(quality, err, day) {
+  document.getElementById('hvQuality').textContent = `Quality: ${(quality*100).toFixed(1)}%`;
+  document.getElementById('hvDetail').textContent  = `Day ${day?.toFixed(1) ?? '—'} · Timing error ${err?.toFixed(2) ?? '—'} days`;
+  document.getElementById('harvestOverlay').classList.add('visible');
+}
+function dismissHarvest() { document.getElementById('harvestOverlay').classList.remove('visible'); }
+
+// ── Seed pin ───────────────────────────────────────────────────────────
+function togglePin() {
+  if (pinnedSeed !== null) {
+    pinnedSeed = null;
+    document.getElementById('seedBadge').classList.remove('pinned');
+  } else if (currentSeed !== null) {
+    pinnedSeed = currentSeed;
+    document.getElementById('seedBadge').classList.add('pinned');
+  }
+}
+
+// ── Compare update ─────────────────────────────────────────────────────
+function buildRaceCards(agentIds) {
+  const wrap = document.getElementById('raceCards');
+  wrap.innerHTML = '';
+  agentIds.forEach(aid => {
+    const def  = catalogue[aid]; if (!def) return;
+    const card = document.createElement('div');
+    card.className = 'race-card'; card.id = `rc-${aid}`;
+    card.style.setProperty('--c', def.color);
+    card.innerHTML = `
+      <div class="rc-name">${AGENT_SHORT[aid] ?? def.label}</div>
+      <div class="rc-stage" id="rcx-${aid}" style="color:var(--c)">—</div>
+      <div class="rc-pct"   id="rcp-${aid}">—</div>
+      <div class="rc-action" id="rca-${aid}">—</div>
+      <div class="rc-day"   id="rcd-${aid}">Day —</div>`;
+    wrap.appendChild(card);
+  });
+}
+
+function buildCompareLegend(agentIds) {
+  const leg = document.getElementById('compareLegend');
+  leg.innerHTML = '';
+  agentIds.forEach(aid => {
+    const def = catalogue[aid]; if (!def) return;
+    const s   = document.createElement('span');
+    s.innerHTML = `<span class="leg-dot" style="background:${def.color}"></span>${AGENT_SHORT[aid] ?? def.label}`;
+    leg.appendChild(s);
+  });
+}
+
+function updateCompare(s) {
+  if (s.seed !== undefined) {
+    currentSeed = s.seed;
+    document.getElementById('seedBadge').textContent = pinnedSeed !== null ? `pinned:${s.seed}` : `seed ${s.seed}`;
+  }
+  document.getElementById('targetBadge').textContent = `target Day ${s.targetDay ?? '—'}`;
+  compareData = s.agents;
+  Object.entries(s.agents).forEach(([aid, ag]) => {
+    const xEl  = document.getElementById(`rcx-${aid}`);
+    const pEl  = document.getElementById(`rcp-${aid}`);
+    const act  = document.getElementById(`rca-${aid}`);
+    const day  = document.getElementById(`rcd-${aid}`);
+    const rip  = ag.ripeness ?? 1;
+    const stageIdx = Math.min(5, Math.floor((1 - rip) * 6));
+    const ripePct  = Math.round(Math.min(100, Math.max(0, (1 - rip) / 0.85 * 100)));
+    if (xEl) xEl.textContent  = STAGES[stageIdx];
+    if (pEl) pEl.textContent  = ripePct + '% toward harvest';
+    if (act) act.textContent  = ACT_LABELS[ag.action] ?? '—';
+    if (day) day.textContent  = `Day ${ag.days?.toFixed(1) ?? '—'}`;
+    if (ag.done) document.getElementById(`rc-${aid}`)?.classList.add('done');
+  });
+  drawCompareChart(s.agents, s.targetDay);
+}
+
+function onCompareDone(s) {
+  simRunning = false;
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnPause').disabled = true;
+  if (currentScenario) setBadge(currentScenario.id, 'done', 'done');
+  updateCompare(s);
+  showCompareResult(s);
+}
+
+function showCompareResult(s) {
+  const panel = document.getElementById('resultPanel');
+  panel.style.display = '';
+  document.getElementById('resultStats').innerHTML = '';
+  document.getElementById('resultTableWrap').style.display = '';
+
+  const rows = Object.entries(s.agents)
+    .map(([aid, ag]) => ({ aid, ag, reward: ag.totalReward ?? -999 }))
+    .sort((a, b) => b.reward - a.reward);
+
+  const winner    = rows[0];
+  const winDef    = catalogue[winner.aid];
+  const winnerName = AGENT_SHORT[winner.aid] ?? winDef?.label ?? winner.aid;
+  const isRL = winner.aid === 'dqn' || winner.aid.startsWith('dqn');
+
+  const iconEl = document.getElementById('resultIcon');
+  iconEl.textContent = 'BEST'; iconEl.className = 'result-icon best';
+
+  document.getElementById('resultTitle').textContent   = `Winner: ${winnerName}`;
+  document.getElementById('resultVerdict').textContent = currentScenario?.id === 'race'
+    ? (isRL ? 'The AI system outperformed all alternatives in this episode.'
+             : 'An alternative outperformed the AI this episode — this can happen with high ambient heat or a very tight deadline.')
+    : 'Algorithm comparison — same environment, different learning strategies.';
+
+  const wCard = document.getElementById(`rc-${winner.aid}`);
+  if (wCard && !wCard.querySelector('.rc-win')) {
+    const b = document.createElement('div');
+    b.className = 'rc-win'; b.textContent = 'WINNER';
+    wCard.appendChild(b);
+  }
+
+  const tbody = document.getElementById('resultsTbody');
+  tbody.innerHTML = '';
+  rows.forEach(({ aid, ag }, i) => {
+    const def = catalogue[aid];
+    const tr  = document.createElement('tr');
+    if (i === 0) tr.className = 'winner';
+    const timingStr = ag.timingError !== undefined
+      ? (ag.timingError < 0.3 ? 'on time' : ag.timingError.toFixed(1) + 'd early')
+      : '—';
+    tr.innerHTML = `
+      <td><div class="agent-name-cell">
+        <div class="color-dot" style="background:${def?.color ?? '#888'}"></div>
+        ${i === 0 ? '<span class="rank-badge">1st</span>' : ''}
+        ${AGENT_SHORT[aid] ?? def?.label ?? aid}
+      </div></td>
+      <td>${ag.totalReward?.toFixed(1) ?? '—'}</td>
+      <td>${ag.harvestQuality !== undefined ? (ag.harvestQuality*100).toFixed(0)+'%' : '—'}</td>
+      <td>${timingStr}</td>
+      <td>${ag.harvestDay !== undefined ? 'Day ' + ag.harvestDay.toFixed(1) : '—'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── ROYG color ─────────────────────────────────────────────────────────
+function roygColor(x) {
+  x = Math.max(0, Math.min(1, x ?? 1));
+  for (let i = 0; i < ROYG_X.length - 1; i++) {
+    if (x >= ROYG_X[i + 1]) {
+      const t = (x - ROYG_X[i+1]) / (ROYG_X[i] - ROYG_X[i+1]);
+      const a = ROYG_RGB[i], b = ROYG_RGB[i+1];
+      return `rgb(${Math.round(a[0]+t*(b[0]-a[0]))},${Math.round(a[1]+t*(b[1]-a[1]))},${Math.round(a[2]+t*(b[2]-a[2]))})`;
+    }
+  }
+  return `rgb(${ROYG_RGB.at(-1).join(',')})`;
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────
+const sCtx = document.getElementById('singleChart').getContext('2d');
+const cCtx = document.getElementById('compareChart').getContext('2d');
+
+function resizeSingleChart() {
+  const cv = document.getElementById('singleChart');
+  cv.width  = cv.clientWidth  || 600;
+  cv.height = cv.clientHeight || 200;
+  drawSingleChart();
+}
+function resizeCompareChart() {
+  const cv = document.getElementById('compareChart');
+  cv.width  = cv.clientWidth  || 800;
+  cv.height = cv.clientHeight || 300;
+  drawCompareChart(compareData);
+}
+
+function drawSingleChart() {
+  const cv = document.getElementById('singleChart');
+  const W = cv.width, H = cv.height;
+  const p = { l:46, r:10, t:12, b:28 };
+  const cW = W-p.l-p.r, cH = H-p.t-p.b;
+  sCtx.clearRect(0,0,W,H);
+  sCtx.fillStyle = '#fafafa'; sCtx.fillRect(0,0,W,H);
+
+  const hrs = singleHist.hours;
+  if (!hrs?.length) {
+    sCtx.fillStyle='#ccc'; sCtx.font='13px Georgia'; sCtx.textAlign='center';
+    sCtx.fillText('Select a scenario above to begin', W/2, H/2); return;
+  }
+  const maxH = hrs.at(-1) || 1;
+
+  // Grid
+  sCtx.strokeStyle='#eee'; sCtx.lineWidth=1;
+  for (let i=0; i<=4; i++) {
+    const y = p.t+(i/4)*cH;
+    sCtx.beginPath(); sCtx.moveTo(p.l,y); sCtx.lineTo(p.l+cW,y); sCtx.stroke();
+    sCtx.fillStyle='#ccc'; sCtx.font='9px Georgia'; sCtx.textAlign='right';
+    sCtx.fillText((1-i/4).toFixed(1), p.l-5, y+3);
+  }
+
+  // Zone labels
+  sCtx.font='9px Georgia'; sCtx.textAlign='right'; sCtx.fillStyle='#bbb';
+  sCtx.fillText('Green',   p.l-5, p.t + 9);
+  sCtx.fillText('Turning', p.l-5, p.t + (1-0.55)*cH + 4);
+  sCtx.fillText('Ripe',    p.l-5, p.t + (1-0.15)*cH - 6);
+
+  // Harvest threshold
+  const thY = p.t+(1-0.15)*cH;
+  sCtx.strokeStyle='#e8a0a0'; sCtx.setLineDash([4,4]); sCtx.lineWidth=1;
+  sCtx.beginPath(); sCtx.moveTo(p.l,thY); sCtx.lineTo(p.l+cW,thY); sCtx.stroke();
+  sCtx.setLineDash([]); sCtx.fillStyle='#e8a0a0'; sCtx.font='9px Georgia'; sCtx.textAlign='left';
+  sCtx.fillText('harvest threshold', p.l+3, thY-3);
+
+  drawLine(sCtx, hrs, singleHist.ripeness,    '#2a7a3b', 2.5, v=>v,             p, cW, cH, maxH);
+  drawLine(sCtx, hrs, singleHist.temperature, '#c05a2a', 1.5, v=>(v-12.5)/27.5, p, cW, cH, maxH);
+  if (singleHist.humidity?.length)
+    drawLine(sCtx, hrs, singleHist.humidity,  '#3a6abf', 1.5, v=>(v-40)/59,     p, cW, cH, maxH);
+
+  // Action dots along bottom
+  hrs.forEach((h, i) => {
+    const x = p.l+(h/maxH)*cW, y = p.t+cH+14;
+    sCtx.beginPath(); sCtx.arc(x,y,2.5,0,Math.PI*2);
+    sCtx.fillStyle = ACT_COLORS[singleHist.actions[i]] ?? '#999'; sCtx.fill();
+  });
+
+  // Day labels
+  sCtx.fillStyle='#bbb'; sCtx.font='9px Georgia'; sCtx.textAlign='center';
+  for (let d=0; d<=Math.ceil(maxH/24); d++) {
+    sCtx.fillText(d+'d', p.l+(d*24/maxH)*cW, p.t+cH+26);
+  }
+}
+
+function drawCompareChart(agents, targetDay) {
+  const cv = document.getElementById('compareChart');
+  const W = cv.width, H = cv.height;
+  const p = { l:46, r:16, t:14, b:30 };
+  const cW = W-p.l-p.r, cH = H-p.t-p.b;
+  cCtx.clearRect(0,0,W,H);
+  cCtx.fillStyle='#fafafa'; cCtx.fillRect(0,0,W,H);
+
+  if (!agents || !Object.keys(agents).length) {
+    cCtx.fillStyle='#ccc'; cCtx.font='13px Georgia'; cCtx.textAlign='center';
+    cCtx.fillText('No data', W/2, H/2); return;
+  }
+
+  let maxH = 0;
+  Object.values(agents).forEach(ag => { const h=ag.history?.hours; if(h?.length) maxH=Math.max(maxH,h.at(-1)); });
+  if (!maxH) maxH = 168;
+  const maxDays = maxH/24;
+
+  // Grid
+  cCtx.strokeStyle='#eee'; cCtx.lineWidth=1;
+  for (let i=0;i<=5;i++) {
+    const y=p.t+(i/5)*cH;
+    cCtx.beginPath(); cCtx.moveTo(p.l,y); cCtx.lineTo(p.l+cW,y); cCtx.stroke();
+    cCtx.fillStyle='#ccc'; cCtx.font='9px Georgia'; cCtx.textAlign='right';
+    cCtx.fillText((1-i/5).toFixed(1), p.l-5, y+3);
+  }
+  cCtx.fillStyle='#bbb'; cCtx.font='9px Georgia'; cCtx.textAlign='center';
+  for (let d=0;d<=Math.ceil(maxDays);d++) {
+    const x=p.l+(d/maxDays)*cW;
+    cCtx.fillText(d+'d', x, p.t+cH+20);
+    cCtx.strokeStyle='#eee'; cCtx.lineWidth=1;
+    cCtx.beginPath(); cCtx.moveTo(x,p.t); cCtx.lineTo(x,p.t+cH); cCtx.stroke();
+  }
+
+  // Harvest + target lines
+  const thY = p.t+(1-0.15)*cH;
+  cCtx.strokeStyle='#e8a0a0'; cCtx.setLineDash([5,5]); cCtx.lineWidth=1;
+  cCtx.beginPath(); cCtx.moveTo(p.l,thY); cCtx.lineTo(p.l+cW,thY); cCtx.stroke();
+  cCtx.fillStyle='#e8a0a0'; cCtx.font='9px Georgia'; cCtx.textAlign='left';
+  cCtx.fillText('harvest threshold', p.l+4, thY-3);
+
+  if (targetDay) {
+    const tx = p.l+(targetDay/maxDays)*cW;
+    cCtx.strokeStyle='#c8a838'; cCtx.setLineDash([6,4]); cCtx.lineWidth=1.5;
+    cCtx.beginPath(); cCtx.moveTo(tx,p.t); cCtx.lineTo(tx,p.t+cH); cCtx.stroke();
+    cCtx.fillStyle='#c8a838'; cCtx.textAlign='left';
+    cCtx.fillText(`target Day ${targetDay}`, tx+3, p.t+11);
+  }
+  cCtx.setLineDash([]);
+
+  Object.entries(agents).forEach(([aid, ag]) => {
+    const hrs=ag.history?.hours, rip=ag.history?.ripeness;
+    if (!hrs?.length||!rip?.length) return;
+    const def=catalogue[aid]; if (!def) return;
+    drawLine(cCtx, hrs, rip, def.color, 2.5, v=>v, p, cW, cH, maxH);
+    const lx=p.l+(hrs.at(-1)/maxH)*cW;
+    const ly=p.t+(1-Math.max(0,Math.min(1,rip.at(-1))))*cH;
+    cCtx.beginPath(); cCtx.arc(lx,ly,5,0,Math.PI*2);
+    cCtx.fillStyle=ag.done?def.color:'white';
+    cCtx.strokeStyle=def.color; cCtx.lineWidth=2; cCtx.fill(); cCtx.stroke();
+  });
+}
+
+function drawLine(ctx, hours, data, color, lw, norm, p, cW, cH, maxH) {
+  if (!data?.length) return;
+  ctx.strokeStyle=color; ctx.lineWidth=lw; ctx.beginPath();
+  data.forEach((v,i) => {
+    const x=p.l+(hours[i]/maxH)*cW;
+    const y=p.t+(1-Math.max(0,Math.min(1,norm(v))))*cH;
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+
+// ── Controls ───────────────────────────────────────────────────────────
+document.getElementById('btnStart').onclick = () => {
+  send({ cmd:'start' }); simRunning=true;
+  document.getElementById('btnStart').disabled=true;
+  document.getElementById('btnPause').disabled=false;
+  if (currentScenario) setBadge(currentScenario.id, 'running', 'running');
+};
+document.getElementById('btnPause').onclick = () => {
+  send({ cmd:'pause' }); simRunning=false;
+  document.getElementById('btnStart').disabled=false;
+  document.getElementById('btnPause').disabled=true;
+};
+document.getElementById('btnStep').onclick  = () => send({ cmd:'step' });
+document.getElementById('btnReset').onclick = () => {
+  const msg = { cmd:'reset' };
+  if (pinnedSeed !== null) msg.seed = pinnedSeed;
+  send(msg); resetUIState();
+  if (currentScenario) setBadge(currentScenario.id, '', '');
+};
+document.getElementById('speedSlider').oninput = function() {
+  document.getElementById('speedLabel').textContent = this.value+'x';
+  send({ cmd:'set_speed', speed:+this.value });
+};
+
+// ── Resize + boot ──────────────────────────────────────────────────────
+window.addEventListener('resize', () => { resizeSingleChart(); if (compareMode) resizeCompareChart(); });
+requestAnimationFrame(() => { resizeSingleChart(); resizeCompareChart(); });
+connect();
+</script>
+</body>
+</html>
